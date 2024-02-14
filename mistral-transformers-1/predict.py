@@ -1,9 +1,11 @@
 import os
-os.environ["HF_HOME"] = "./weights-cache"
+# os.environ["HF_HOME"] = "./weights-cache"
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 from threading import Thread
+import time
 from transformers import TextIteratorStreamer
 import torch
+from utils import maybe_download_with_pget
 from cog import BasePredictor, ConcatenateIterator, Input
 model_id='hamel/hc-mistral-qlora-6'
 
@@ -20,6 +22,7 @@ TORCH_DTYPE_MAP = {
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 BASE_MODEL_ID = "mistralai/Mistral-7B-v0.1"
+
 def prompt(nlq, cols):
     return f"""[INST] <<SYS>>
 Honeycomb AI suggests queries based on user input and candidate columns.
@@ -31,17 +34,38 @@ Candidate Columns: {cols}
 [/INST]
 """
 
+WEIGHTS_URL = "https://weights.replicate.delivery/default/mistral-7b-0.1"
+REMOTE_FILES = [
+    "config.json",
+    "model-00001-of-00002.safetensors",
+    "model-00002-of-00002.safetensors",
+    "model.safetensors.index.json",
+    "special_tokens_map.json",
+    "tokenizer.json",
+    "tokenizer.model",
+    "tokenizer_config.json"
+]
 
 class Predictor(BasePredictor):
     task = "text-generation"
     base_model_id = BASE_MODEL_ID
+    gcp_bucket_weights = True
     cache_dir = "./hf-cache"
     torch_dtype = "bf16"
 
     def setup(self):
         print("Starting setup")
 
-        os.environ["TRANSFORMERS_CACHE"] = self.cache_dir
+        if self.gcp_bucket_weights:
+            start = time.time()
+            maybe_download_with_pget(
+                self.base_model_id, 
+                WEIGHTS_URL, 
+                REMOTE_FILES
+            )
+            print(f"downloading weights took {time.time() - start:.3f}s")
+        
+        # os.environ["TRANSFORMERS_CACHE"] = self.cache_dir
         global TextIteratorStreamer
         from transformers import (
             AutoTokenizer,
@@ -67,7 +91,7 @@ class Predictor(BasePredictor):
         _prompt = prompt(nlq, cols)
         print(f'\n=================\nThis is the prompt:\n{_prompt}\n')
         inputs = self.tokenizer(
-            [_prompt], return_tensors="pt", add_special_tokens=False, return_token_type_ids=False
+            [_prompt], return_tensors="pt", truncation=True, return_token_type_ids=False
         ).to(DEVICE)
         streamer = TextIteratorStreamer(self.tokenizer, timeout=10.0, skip_prompt=True, skip_special_tokens=True)
         generate_kwargs = dict(
