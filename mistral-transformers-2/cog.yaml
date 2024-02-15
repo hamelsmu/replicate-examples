@@ -22,7 +22,7 @@ build:
 
   # commands run after the environment is setup
   run:
-    - pip install transformers==4.36.2 datasets==2.15.0 peft==0.6.0 accelerate==0.24.1 bitsandbytes==0.41.3.post2 safetensors==0.4.1 --upgrade
+    - pip install transformers==4.36.2 datasets==2.15.0 peft==0.8.2 accelerate==0.24.1 bitsandbytes==0.41.3.post2 safetensors==0.4.1 --upgrade
     - curl -o /usr/local/bin/pget -L "https://github.com/replicate/pget/releases/download/v0.5.4/pget_linux_x86_64" && chmod +x /usr/local/bin/pget
     - bash -c 'ln -s /usr/local/lib/python3.11/site-packages/torch/lib/lib{nv,cu}* /usr/lib'
     - pip install scipy==1.11.4 sentencepiece==0.1.99 protobuf==4.23.4
