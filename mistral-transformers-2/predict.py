@@ -3,10 +3,10 @@ import os
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 from threading import Thread
 import time
-from transformers import TextIteratorStreamer
 import torch
 from utils import maybe_download_with_pget
-from cog import BasePredictor, ConcatenateIterator, Input
+from cog import BasePredictor, Input
+from typing import List
 model_id='parlance-labs/hc-mistral-alpaca'
 
 DEFAULT_MAX_NEW_TOKENS = os.environ.get("DEFAULT_MAX_NEW_TOKENS", 5000)
@@ -34,6 +34,11 @@ Columns: {cols}
 
 ### Response:
 """
+
+def remove_outer_quotes(s):
+    if s.startswith('"') and s.endswith('"'):
+        return s[1:-1]
+    return s
 
 # Cache Base Model Files
 WEIGHTS_URL = "https://weights.replicate.delivery/default/mistral-7b-0.1"
@@ -81,6 +86,16 @@ class Predictor(BasePredictor):
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
+    def prompt_tok(self, nlq, cols, max_new_tokens=5000):
+        _p = prompt(nlq, cols)
+        print(f'\n=================\nThis is the prompt:\n{_p}\n')
+        input_ids = self.tokenizer(_p, return_tensors="pt", truncation=True).input_ids.cuda()
+        out_ids = self.model.generate(input_ids=input_ids, max_new_tokens=max_new_tokens, 
+                            do_sample=False)
+        query = self.tokenizer.batch_decode(out_ids.detach().cpu().numpy(), 
+                                    skip_special_tokens=True)[0][len(_p):]
+        return remove_outer_quotes(query.strip())
+    
     def predict(
         self,
         nlq: str,
@@ -89,25 +104,8 @@ class Predictor(BasePredictor):
             description="The maximum number of tokens the model should generate as output.",
             default=DEFAULT_MAX_NEW_TOKENS,
         )
-    ) -> ConcatenateIterator:
-        _prompt = prompt(nlq, cols)
-        print(f'\n=================\nThis is the prompt:\n{_prompt}\n')
-        inputs = self.tokenizer(
-            [_prompt], return_tensors="pt", truncation=True, return_token_type_ids=False
-        ).to(DEVICE)
-        streamer = TextIteratorStreamer(self.tokenizer, timeout=10.0, skip_prompt=True, skip_special_tokens=True)
-        generate_kwargs = dict(
-            **inputs,
-            streamer=streamer,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-        )
-        t = Thread(target=self.model.generate, kwargs=generate_kwargs)
-        t.start()
-
-        for text in streamer:
-            yield text
-
+    ) -> str:        
+        return self.prompt_tok(nlq, cols, max_new_tokens)
 
 if __name__ == "__main__":
     p = Predictor()
