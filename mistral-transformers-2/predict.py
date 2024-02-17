@@ -9,7 +9,7 @@ from cog import BasePredictor, Input
 from typing import List
 model_id='parlance-labs/hc-mistral-alpaca'
 
-DEFAULT_MAX_NEW_TOKENS = os.environ.get("DEFAULT_MAX_NEW_TOKENS", 5000)
+DEFAULT_MAX_NEW_TOKENS = os.environ.get("DEFAULT_MAX_NEW_TOKENS", 1000)
 DEFAULT_TEMPERATURE = os.environ.get("DEFAULT_TEMPERATURE", 0.7)
 DEFAULT_TOP_P = os.environ.get("DEFAULT_TOP_P", 0.95)
 DEFAULT_TOP_K = os.environ.get("DEFAULT_TOP_K", 50)
@@ -34,11 +34,6 @@ Columns: {cols}
 
 ### Response:
 """
-
-def remove_outer_quotes(s):
-    if s.startswith('"') and s.endswith('"'):
-        return s[1:-1]
-    return s
 
 # Cache Base Model Files
 WEIGHTS_URL = "https://weights.replicate.delivery/default/mistral-7b-0.1"
@@ -83,18 +78,20 @@ class Predictor(BasePredictor):
         # resolve torch dtype from string.
         torch_dtype = TORCH_DTYPE_MAP[self.torch_dtype]
         self.model = AutoPeftModelForCausalLM.from_pretrained(model_id).cuda()
+        self.model = torch.compile(self.model, mode="max-autotune")
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    def prompt_tok(self, nlq, cols, max_new_tokens=5000):
+    def prompt_tok(self, nlq, cols, max_new_tokens):
         _p = prompt(nlq, cols)
         print(f'\n=================\nThis is the prompt:\n{_p}\n')
         input_ids = self.tokenizer(_p, return_tensors="pt", truncation=True).input_ids.cuda()
-        out_ids = self.model.generate(input_ids=input_ids, max_new_tokens=max_new_tokens, 
-                            do_sample=False)
+        with torch.no_grad():
+            out_ids = self.model.generate(input_ids=input_ids, max_new_tokens=max_new_tokens, 
+                                do_sample=False)
         query = self.tokenizer.batch_decode(out_ids.detach().cpu().numpy(), 
                                     skip_special_tokens=True)[0][len(_p):]
-        return remove_outer_quotes(query.strip())
+        return query.strip().strip('"')
     
     def predict(
         self,
