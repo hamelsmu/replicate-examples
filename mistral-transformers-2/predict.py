@@ -82,13 +82,13 @@ class Predictor(BasePredictor):
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    def prompt_tok(self, nlq, cols, max_new_tokens):
+    def prompt_tok(self, nlq, cols, max_new_tokens, temperature):
         _p = prompt(nlq, cols)
         print(f'\n=================\nThis is the prompt:\n{_p}\n')
         input_ids = self.tokenizer(_p, return_tensors="pt", truncation=True).input_ids.cuda()
         with torch.no_grad():
             out_ids = self.model.generate(input_ids=input_ids, max_new_tokens=max_new_tokens, 
-                                do_sample=False)
+                                temperature=temperature, do_sample=False)
         query = self.tokenizer.batch_decode(out_ids.detach().cpu().numpy(), 
                                     skip_special_tokens=True)[0][len(_p):]
         return query.strip().strip('"')
@@ -97,12 +97,16 @@ class Predictor(BasePredictor):
         self,
         nlq: str,
         cols: str,
+        temperature: float = Input(
+            description="The temperature to use when sampling from the model.",
+            default=DEFAULT_TEMPERATURE
+            ),
         max_new_tokens: int = Input(
             description="The maximum number of tokens the model should generate as output.",
             default=DEFAULT_MAX_NEW_TOKENS,
         )
     ) -> str:        
-        return self.prompt_tok(nlq, cols, max_new_tokens)
+        return self.prompt_tok(nlq, cols, max_new_tokens, temperature)
 
 if __name__ == "__main__":
     p = Predictor()
@@ -110,6 +114,6 @@ if __name__ == "__main__":
     for text in p.predict(
         nlq="Exception count by exception and caller", 
         cols=['error', 'exception.message', 'exception.type', 'exception.stacktrace', 'SampleRate', 'name', 'db.user', 'type', 'duration_ms', 'db.name', 'service.name', 'http.method', 'db.system', 'status_code', 'db.operation', 'library.name', 'process.pid', 'net.transport', 'messaging.system', 'rpc.system', 'http.target', 'db.statement', 'library.version', 'status_message', 'parent_name', 'aws.region', 'process.command', 'rpc.method', 'span.kind', 'serializer.name', 'net.peer.name', 'rpc.service', 'http.scheme', 'process.runtime.name', 'serializer.format', 'serializer.renderer', 'net.peer.port', 'process.runtime.version', 'http.status_code', 'telemetry.sdk.language', 'trace.parent_id', 'process.runtime.description', 'span.num_events', 'messaging.destination', 'net.peer.ip', 'trace.trace_id', 'telemetry.instrumentation_library', 'trace.span_id', 'span.num_links', 'meta.signal_type', 'http.route'],
-        max_new_tokens=1024
+        max_new_tokens=1000
     ):
         print(text, end="")
