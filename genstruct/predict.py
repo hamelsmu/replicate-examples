@@ -20,7 +20,7 @@ class Predictor(BasePredictor):
         self.llm = LLM(model='NousResearch/Genstruct-7B', 
                        tensor_parallel_size=n_gpus)
 
-    def predict(self, title: str, content: str, temp:float=0.0, max_tokens:int=2000) -> str:        
+    def predict(self, title: str, content: str, temp:float=0.0, max_tokens:int=1000) -> str:        
         _p = prompt(title, content)
         sampling_params = SamplingParams(temperature=temp, ignore_eos=True, max_tokens=max_tokens)
         out = self.llm.generate(_p, sampling_params=sampling_params, use_tqdm=False)
