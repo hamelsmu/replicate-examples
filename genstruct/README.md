@@ -2,5 +2,5 @@ This cog model has been pushed to [hamelsmu/honeycomb-3](https://replicate.com/h
 
 ```bash
 cog login
-cog push r8.im/replicate/genstruct
+cog push r8.im/replicate-internal/genstruct-7b
 ```
