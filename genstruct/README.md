@@ -1,4 +1,4 @@
-This cog model has been pushed to [hamelsmu/honeycomb-3](https://replicate.com/hamelsmu/honeycomb-3)
+This cog model has been pushed to [replicate-internal/genstruct-7b](https://replicate.com/replicate-internal/genstruct-7b)
 
 ```bash
 cog login
