@@ -1,11 +1,16 @@
 import os
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import torch
+from uuid import uuid4
 from cog import BasePredictor
 from vllm import LLM, SamplingParams
+from vllm import AsyncEngineArgs, AsyncLLMEngine
+import time
 
-def prompt(nlq, cols):
-    return f"""Honeycomb is an observability platform that allows you to write queries to inspect trace data. You are an assistant that takes a natural language query (NLQ) and a list of valid columns and produce a Honeycomb query.
+MODEL_ID = 'parlance-labs/hc-mistral-alpaca-merged-awq'
+MAX_TOKENS=2500
+
+PROMPT_TEMPLATE = """Honeycomb is an observability platform that allows you to write queries to inspect trace data. You are an assistant that takes a natural language query (NLQ) and a list of valid columns and produce a Honeycomb query.
 
 ### Instruction:
 
@@ -18,22 +23,27 @@ Columns: {cols}
 
 class Predictor(BasePredictor):
         
-    def setup(self):
+    async def setup(self):
         n_gpus = torch.cuda.device_count()
         # you usually would let these be set by the user, but for this specific model, I know the best settings.
         self.sampling_params = SamplingParams(stop_token_ids=[2], temperature=0, ignore_eos=True, max_tokens=2500)
-        self.llm = LLM(model='parlance-labs/hc-mistral-alpaca-merged-awq', 
-                       tensor_parallel_size=n_gpus, quantization="AWQ")
 
-    def predict(self, nlq: str, cols: str) -> str:        
-        _p = prompt(nlq, cols)
-        out = self.llm.generate(_p, sampling_params=self.sampling_params, use_tqdm=False)
-        return out[0].outputs[0].text.strip().strip('"')
+        ENGINE_ARGS = AsyncEngineArgs(
+                        tensor_parallel_size=n_gpus,
+                        quantization="AWQ"
+                        model=MODEL_ID,
+                        max_model_len=MAX_TOKENS
+        )
+        self.engine = AsyncLLMEngine.from_engine_args(ENGINE_ARGS)
 
-if __name__ == "__main__":
-    p = Predictor()
-    p.setup()
-    p.predict(
-        nlq="Exception count by exception and caller", 
-        cols=['error', 'exception.message', 'exception.type', 'exception.stacktrace', 'SampleRate', 'name', 'db.user', 'type', 'duration_ms', 'db.name', 'service.name', 'http.method', 'db.system', 'status_code', 'db.operation', 'library.name', 'process.pid', 'net.transport', 'messaging.system', 'rpc.system', 'http.target', 'db.statement', 'library.version', 'status_message', 'parent_name', 'aws.region', 'process.command', 'rpc.method', 'span.kind', 'serializer.name', 'net.peer.name', 'rpc.service', 'http.scheme', 'process.runtime.name', 'serializer.format', 'serializer.renderer', 'net.peer.port', 'process.runtime.version', 'http.status_code', 'telemetry.sdk.language', 'trace.parent_id', 'process.runtime.description', 'span.num_events', 'messaging.destination', 'net.peer.ip', 'trace.trace_id', 'telemetry.instrumentation_library', 'trace.span_id', 'span.num_links', 'meta.signal_type', 'http.route'],
-    )
+        # self.llm = LLM(model='parlance-labs/hc-mistral-alpaca-merged-awq', 
+        #                tensor_parallel_size=n_gpus, quantization="AWQ")
+
+    async def predict(self, nlq: str, cols: str) -> str:
+        start = time.time()
+        request_id = uuid4().hex        
+        _p = PROMPT_TEMPLATE.format(nlq=nlq, cols=cols)
+        results_generator = self.engine.generate(_p, sampling_params=self.sampling_params, request_id=request_id, use_tqdm=False)
+        async for request_output in results_generator:
+            final_output = request_output
+        return final_output.outputs[0].text.strip().strip('"')
