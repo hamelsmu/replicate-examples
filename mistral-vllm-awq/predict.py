@@ -30,7 +30,7 @@ class Predictor(BasePredictor):
 
         ENGINE_ARGS = AsyncEngineArgs(
                         tensor_parallel_size=n_gpus,
-                        quantization="AWQ"
+                        quantization="AWQ",
                         model=MODEL_ID,
                         max_model_len=MAX_TOKENS
         )
