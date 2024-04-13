@@ -2,3 +2,4 @@ nate/
 **/weights-cache/
 .cog
 mistralai
+__pycache__
