@@ -3,11 +3,9 @@
 
 First prepare the environment.  The input parameters are set in the .env file.  You can change the default values there.  You can overide two environment variables `MODEL_ID` and `COG_WEIGHTS` by passing the `--m` and `--c` flags to the script.
 
-```bash
-./setup.sh -h
 ```
+$ ./setup.sh -h
 
-```
 Usage: setup.sh [-h] [-m MODEL_ID] [-w COG_WEIGHTS] [-t TAG_NAME]
 
 This script configures the environment for COG VLLM by optionally updating
@@ -34,7 +32,7 @@ For example to build with mistral-7b-instruct-v0.2 you would run:
 
 ```bash
 cog login
-cog push <your replicate model destination> # r8.im/hamelsmu/test-mistral-7b-instruct-v0.2
+cog push <replicate destination> # r8.im/hamelsmu/test-mistral-7b-instruct-v0.2
 ```
 
 
@@ -49,5 +47,13 @@ python predict.py
 or run `cog predict`:
 
 ```bash
-cog predict -e CUDA_VISIBLE_DEVICES=0 -i prompt="Write a blogpost about SEO directed at a technical audience" -i max_new_tokens=512 -i temperature=0.6 -i top_p=0.9 -i top_k=50 -i presence_penalty=0.0 -i frequency_penalty=0.0 -i prompt_template="<s>[INST] {prompt} [/INST] "
+cog predict -e CUDA_VISIBLE_DEVICES=0 \
+           -i prompt="Write a blogpost about SEO directed at a technical audience" \
+           -i max_new_tokens=512 \
+           -i temperature=0.6 \
+           -i top_p=0.9 \
+           -i top_k=50 \
+           -i presence_penalty=0.0 \
+           -i frequency_penalty=0.0 \
+           -i prompt_template="<s>[INST] {prompt} [/INST] "
 ```
