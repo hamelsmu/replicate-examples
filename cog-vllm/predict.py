@@ -8,16 +8,12 @@ from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.sampling_params import SamplingParams
 import torch
 
-# from downloader import Downloader
 from utils import maybe_download_with_pget, delay_prints
-
-
-# MODEL_ID = "mixtral-8x7b-32kseqlen"
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from a .env file
 
-MODEL_ID = os.getenv("MODEL_ID", "mistralai/Mistral-7B-Instruct-v0.1")
-WEIGHTS_URL = os.getenv("COG_WEIGHTS", "https://weights.replicate.delivery/default/mistral-7b-instruct-v0.2")
+MODEL_ID = os.getenv("MODEL_ID")
+WEIGHTS_URL = os.getenv("COG_WEIGHTS")
 REMOTE_FILES = [
     "config.json",
     "model.safetensors",
@@ -127,9 +123,9 @@ class Predictor(BasePredictor):
     def setup(self):
         n_gpus = torch.cuda.device_count()
         start = time.time()
-        # maybe_download_with_pget(
-        #     MODEL_ID, WEIGHTS_URL, REMOTE_FILES
-        # )
+        maybe_download_with_pget(
+            MODEL_ID, WEIGHTS_URL, REMOTE_FILES
+        )
         print(f"downloading weights took {time.time() - start:.3f}s")
         self.llm = VLLMPipeline(
             tensor_parallel_size=n_gpus,
