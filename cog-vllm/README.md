@@ -5,7 +5,9 @@ First prepare the environment.  The input parameters are set in the .env file.  
 
 ```bash
 ./setup.sh -h
+```
 
+```
 Usage: setup.sh [-h] [-m MODEL_ID] [-w COG_WEIGHTS] [-t TAG_NAME]
 
 This script configures the environment for COG VLLM by optionally updating
