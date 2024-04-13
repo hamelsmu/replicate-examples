@@ -23,7 +23,8 @@ This will build the cog container and tag it as `cog-vllm`, unless you override 
 For example to build with mistral-7b-instruct-v0.2 you would run:
 
 ```bash
-./setup.sh -m mistralai/Mistral-7B-Instruct-v0.2 -w https://weights.replicate.delivery/default/mistral-7b-instruct-v0.2
+./setup.sh -m mistralai/Mistral-7B-Instruct-v0.2 \
+           -w https://weights.replicate.delivery/default/mistral-7b-instruct-v0.2
 ```
 
 
