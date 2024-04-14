@@ -1,16 +1,14 @@
-import os
-import asyncio
+import os, random, asyncio, time
 from typing import AsyncIterator, List, Union
-import time
 from cog import BasePredictor, Input, ConcatenateIterator
 from vllm import AsyncLLMEngine
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.sampling_params import SamplingParams
 import torch
+from utils import maybe_download_with_pget
 
-from utils import maybe_download_with_pget, delay_prints
 from dotenv import load_dotenv
-load_dotenv()  # Load environment variables from a .env file
+load_dotenv()
 
 MODEL_ID = os.getenv("MODEL_ID")
 WEIGHTS_URL = os.getenv("COG_WEIGHTS")
@@ -40,16 +38,22 @@ class VLLMPipeline:
     def __init__(self, *args, **kwargs) -> None:
         args = AsyncEngineArgs(*args, **kwargs)
         self.engine = AsyncLLMEngine.from_engine_args(args)
-        self.tokenizer = self.engine.engine.tokenizer.tokenizer if hasattr(self.engine.engine.tokenizer, "tokenizer") else self.engine.engine.tokenizer
+        self.tokenizer = (
+            self.engine.engine.tokenizer.tokenizer 
+            if hasattr(self.engine.engine.tokenizer, "tokenizer") 
+            else self.engine.engine.tokenizer
+        )
 
     async def generate_stream(
         self, prompt: str, sampling_params: SamplingParams
     ) -> AsyncIterator[str]:
-        results_generator = self.engine.generate(prompt, sampling_params, 0)
+        results_generator = self.engine.generate(
+            prompt, sampling_params, str(random.random())
+            )
         async for generated_text in results_generator:
             yield generated_text
 
-    def __call__(
+    async def __call__(
         self,
         prompt: str,
         max_new_tokens: int,
@@ -93,37 +97,23 @@ class VLLMPipeline:
             presence_penalty=presence_penalty,
         )
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        gen = self.generate_stream(
-            prompt,
-            sampling_params,
-        )
-
         generation_length = 0
-        while True:
-            try:
-                request_output = loop.run_until_complete(gen.__anext__())
-                assert len(request_output.outputs) == 1
-                generated_text = request_output.outputs[0].text
-                if incremental_generation:
-                    yield generated_text[generation_length:]
-                else:
-                    yield generated_text
-                generation_length = len(generated_text)
-            except StopAsyncIteration:
-                break
+
+        async for request_output in self.generate_stream(prompt, sampling_params):
+            assert len(request_output.outputs) == 1
+            generated_text = request_output.outputs[0].text
+            if incremental_generation:
+                yield generated_text[generation_length:]
+            else:
+                yield generated_text
+            generation_length = len(generated_text)
 
 
 class Predictor(BasePredictor):
-    def setup(self):
+    async def setup(self):
         n_gpus = torch.cuda.device_count()
         start = time.time()
-        maybe_download_with_pget(
+        await maybe_download_with_pget(
             MODEL_ID, WEIGHTS_URL, REMOTE_FILES
         )
         print(f"downloading weights took {time.time() - start:.3f}s")
@@ -136,8 +126,7 @@ class Predictor(BasePredictor):
             # max_model_len=MAX_TOKENS
         )
 
-    @delay_prints(REALLY_EAT_MY_PRINT_STATEMENTS=True)
-    def predict(
+    async def predict(
         self,
         prompt: str,
         max_new_tokens: int = Input(
@@ -178,24 +167,25 @@ class Predictor(BasePredictor):
             presence_penalty=presence_penalty,
             frequency_penalty=frequency_penalty,
         )
-        for text in generate:
+        async for text in generate:
             yield text
         print(f"generation took {time.time() - start:.3f}s")
 
 
-
-# def main():
-if __name__ == "__main__":
+async def main():
     p = Predictor()
-    p.setup()
-    for text in p.predict(
-        "Write a blogpost about SEO directed at a technical audience",
-        512,
-        0.8,
-        0.95,
-        50,
-        1.0,
-        0.2,
-        PROMPT_TEMPLATE,
+    await p.setup()
+    async for text in p.predict(
+        prompt="Write a blogpost about SEO directed at a technical audience",
+        max_new_tokens=512,
+        temperature=0.8,
+        top_p=0.95,
+        top_k=50,
+        presence_penalty=1.0,
+        frequency_penalty=0.2,
+        prompt_template=PROMPT_TEMPLATE,
     ):
         print(text, end="")
+
+if __name__ == "__main__":
+    asyncio.run(main())
